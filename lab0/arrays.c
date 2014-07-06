@@ -13,7 +13,7 @@
 // Fill the given array with values. Note that C doesn't
 // keep track of the length of arrays, so we have to
 // specify it explictly here.
-void fillArray(int* array, int len) {
+void fillArray(int *array, int len) {
   printf("Filling an array at address %p with %d "
          "values\n", array, len);
   for (int i = 0; i < len; ++i) {
@@ -53,9 +53,10 @@ int main(int argc, char* argv[]) {
   // to 11 instead? How about 100? 1000? Make sure to set
   // the second argument back to 10 when you are done
   // testing.
-  // Answer:
+  // Answer: It works fine, but it is dangerous(array out of bound alougth c don't check array bound, 
+  //         we will wirte data to unsafe address, this may crash the program). 
   fillArray(array, 10);
-
+  //assert(array[11] == 32);
   int value;
   // In C, we can take the address of something using the
   // & operator. &value is of the type int*, meaning that
@@ -65,7 +66,7 @@ int main(int argc, char* argv[]) {
   // TODO(2): We can actually use the address of the value
   // declared here as if it were an array of a single
   // element; why is this possible?
-  // Answer:
+  // Answer: &value is of the type int*(a address) and we use the address of the first element of a array to locate the array   
   fillArray(&value, 1);
   // fillArray should set value to 0 * 3 + 2 = 2.
   assert(value == 2);
@@ -116,7 +117,7 @@ int main(int argc, char* argv[]) {
   // it. valgrind is a tool for analyzing how programs
   // use memory, which is often invaluable for C and
   // C++ programming.
-  // Answer:
+  // Answer: memory leak
   free(heap_array);
 
   // TODO(4): Now it's your turn to write some code.
@@ -131,5 +132,13 @@ int main(int argc, char* argv[]) {
   // you would expect. (Hint, you'll need to use the
   // -> operator to access fields of a FourInts*
   // variable instead of the . operator).
+  FourInts* my_four_ints = (FourInts*) malloc(sizeof(FourInts));
+  fillArray((int*)my_four_ints, 4);
+  assert(my_four_ints->a == 2);
+  assert(my_four_ints->b == 5);
+  assert(my_four_ints->c == 8);
+  assert(my_four_ints->d == 11);
+  free(my_four_ints);
+
   return 0;
 }
