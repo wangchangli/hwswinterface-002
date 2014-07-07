@@ -1,7 +1,7 @@
 /*
  * CSE 351 HW1 (Data Lab - Pointers)
  *
- * <Please put your name and userid here>
+ * <wangchangli changliwang2009@gmail.com>
  *
  * pointer.c - Source file with your solutions to the Lab.
  *          This is the file you will hand in to your instructor.
@@ -85,8 +85,9 @@ int intSize() {
   int * intPtr1;
   int * intPtr2;
   // TODO: Write code to compute size of an integer.
-
-  return 2;
+  int start = intArray;
+  int end = intArray + 1;
+  return end - start;
 }
 
 /*
@@ -97,8 +98,9 @@ int doubleSize() {
   double * doubPtr1;
   double * doubPtr2;
   // TODO: Write code to compute size of a double.
-
-  return 2;
+  int start = doubArray;
+  int end = doubArray + 1;
+  return end - start;
 }
 
 /*
@@ -109,8 +111,9 @@ int pointerSize() {
   double ** ptrPtr1;
   double ** ptrPtr2;
   // TODO: Write code to compute size of a pointer.
-
-  return 2;
+  int start = ptrArray;
+  int end = ptrArray + 1;
+  return end - start;
 }
 
 /*
@@ -123,7 +126,8 @@ int changeValue() {
   int * intPtr2;
   // TODO: Write code to change value of intArray[5] to 351 using only
   //       intPtr1 and the + operator.
-
+  intPtr2 = intPtr1 + 5;
+  *intPtr2 = 351;
   return intArray[5];
 }
 
@@ -136,7 +140,8 @@ int changeValue() {
  */
 int withinSameBlock(int * ptr1, int * ptr2) {
   // TODO
-  return 2;
+  int mask = (1<<31)>>25;
+  return ((int)ptr1 & mask) == ((int)ptr2 & mask);
 }
 
 /*
@@ -154,5 +159,6 @@ int withinArray(int * intArray, int size, int * ptr) {
  */
 int invert(int x, int p, int n) {
   // TODO
-  return 2;
+  
+  return (x>>p) & (~(((1<<31) >> (32 - n)) << 1));
 }
