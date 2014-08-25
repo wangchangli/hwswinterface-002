@@ -39,8 +39,13 @@ mystery3:
 */
 int get_block_size(void) {
   /* YOUR CODE GOES HERE */
-
-  return -1;
+  flush_cache();
+  int addr = 0;
+  access_cache(0);
+  while(access_cache(addr+1)){
+    addr ++;
+  }
+  return addr + 1 ;
 }
 
 /*
@@ -48,8 +53,18 @@ int get_block_size(void) {
 */
 int get_cache_size(int size) {
   /* YOUR CODE GOES HERE */
-
-  return -1;
+  flush_cache();
+  int i = 0;
+  access_cache(0);
+  while(access_cache(0)){
+    i++;
+    flush_cache();
+    int addr;
+    for(addr=0; addr<i*size;addr+=size){
+      access_cache(addr);
+    }
+  }
+  return (i-1)*size;
 }
 
 /*
@@ -57,8 +72,18 @@ int get_cache_size(int size) {
 */
 int get_cache_assoc(int size) {
   /* YOUR CODE GOES HERE */
-
-  return -1;
+  flush_cache();
+  int s = 1;
+  access_cache(0);
+  while(access_cache(0)){
+    flush_cache();
+    int i;
+    for(i=0; i<=s; i++){
+      access_cache(i*size);
+    }    
+    s++;
+  }
+  return s-1;
 }
 
 //// DO NOT CHANGE ANYTHING BELOW THIS POINT
@@ -71,7 +96,7 @@ int main(void) {
      ignored by the mystery caches, as they are hard coded.  You can
      test your geometry paramter discovery routines by calling
      cache_init() w/ your own size and block size values. */
-  cache_init(0,0);
+  cache_init(1,1);
 
   block_size=get_block_size();
   size=get_cache_size(block_size);
