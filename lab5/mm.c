@@ -119,6 +119,49 @@ typedef struct BlockInfo BlockInfo;
    of the previous block from its boundary tag */
 #define TAG_PRECEDING_USED 2
 
+/* put header and boundary tags for block*/
+void putSizeAndTags(void *ptr, size_t sizeAndTags){
+  BlockInfo * blockInfo = ptr;
+  blockInfo -> sizeAndTags = sizeAndTags;
+  *(size_t *)POINTER_ADD(blockInfo, SIZE(blockInfo->sizeAndTags) - WORD_SIZE) = sizeAndTags; 
+}
+
+/* Print the heap by iterating through it as an implicit free list. */
+static void examine_heap() {
+  return NULL;
+  BlockInfo *block;
+
+  fprintf(stderr, "mem_heap_lo:%lx mem_heap_hi:%lx\n", mem_heap_lo(), mem_heap_hi());
+  block = (BlockInfo*)POINTER_ADD(mem_heap_lo(), WORD_SIZE);
+  fprintf(stderr, "%p %d\n", block, SIZE(block->sizeAndTags));
+  fprintf(stderr, "FREE_LIST_HEAD: %p\n", (void *)FREE_LIST_HEAD);
+  
+  for(block = (BlockInfo*)POINTER_ADD(mem_heap_lo(), WORD_SIZE); /* first block on heap */
+      SIZE(block->sizeAndTags) != 0 && block < mem_heap_hi();
+      block = (BlockInfo*)POINTER_ADD(block, SIZE(block->sizeAndTags))) {
+
+    /* print out common block attributes */
+    size_t boundaryTag = *((size_t*)POINTER_ADD(block,  SIZE(block->sizeAndTags) - WORD_SIZE));
+    fprintf(stderr, "%p: %ld %ld %ld boundary %ld %ld %ld\t",
+            (void*)block,
+            SIZE(block->sizeAndTags),
+            block->sizeAndTags & TAG_PRECEDING_USED,
+            block->sizeAndTags & TAG_USED,
+            SIZE(boundaryTag),
+            boundaryTag & TAG_PRECEDING_USED,
+            boundaryTag & TAG_USED);
+
+    /* and allocated/free specific data */
+    if (block->sizeAndTags & TAG_USED) {
+      fprintf(stderr, "ALLOCATED\n");
+    } else {
+      fprintf(stderr, "FREE\tnext: %p, prev: %p\n",
+              (void*)block->next,
+              (void*)block->prev);
+    }
+  }
+  fprintf(stderr, "END OF HEAP\n\n");
+}
 
 /* Find a free block of the requested size in the free list.  Returns
    NULL if no free block is large enough. */
@@ -142,6 +185,9 @@ static void insertFreeBlock(BlockInfo* freeBlock) {
   freeBlock->next = oldHead;
   if (oldHead != NULL) {
     oldHead->prev = freeBlock;
+  }else{
+    //init the new FREE_LIST_HEAD tags
+    putSizeAndTags(freeBlock, freeBlock->sizeAndTags | TAG_PRECEDING_USED);
   }
   //  freeBlock->prev = NULL;
   FREE_LIST_HEAD = freeBlock;
@@ -170,6 +216,8 @@ static void removeFreeBlock(BlockInfo* freeBlock) {
 
 /* Coalesce 'oldBlock' with any preceeding or following free blocks. */
 static void coalesceFreeBlock(BlockInfo* oldBlock) {
+  //fprintf(stderr, "before coalesce\n");
+  //examine_heap();
   BlockInfo *blockCursor;
   BlockInfo *newBlock;
   BlockInfo *freeBlock;
@@ -228,6 +276,8 @@ static void coalesceFreeBlock(BlockInfo* oldBlock) {
     // Put the new block in the free list.
     insertFreeBlock(newBlock);
   }
+  //fprintf(stderr, "after coalesce\n");
+  //examine_heap();
   return;
 }
 
@@ -244,7 +294,7 @@ static void requestMoreSpace(size_t reqSize) {
     printf("ERROR: mem_sbrk failed in requestMoreSpace\n");
     exit(0);
   }
-  fprintf(stderr, "enter requestMoreSpace:%d\n", reqSize);
+  //fprintf(stderr, "enter requestMoreSpace:%d\n", reqSize);
   newBlock = (BlockInfo*)POINTER_SUB(mem_sbrk_result, WORD_SIZE);
 
   /* initialize header, inherit TAG_PRECEDING_USED status from the
@@ -264,11 +314,15 @@ static void requestMoreSpace(size_t reqSize) {
      block is the end of the heap... */
   *((size_t*)POINTER_ADD(newBlock, totalSize)) = TAG_USED;
 
+  if(*(size_t *)POINTER_SUB(newBlock, WORD_SIZE) & TAG_USED == 1){
+    putSizeAndTags(newBlock, newBlock->sizeAndTags | TAG_PRECEDING_USED);
+  }
+
   // Add the new block to the free list and immediately coalesce newly
   // allocated memory space
   insertFreeBlock(newBlock);
   coalesceFreeBlock(newBlock);
-  fprintf(stderr, "exit requestMore:%d\n", totalSize);
+  //fprintf(stderr, "exit requestMore:%d\n", totalSize);
 }
 
 
@@ -318,36 +372,6 @@ int mm_init () {
 
 // TOP-LEVEL ALLOCATOR INTERFACE ------------------------------------
 
-/* Print the heap by iterating through it as an implicit free list. */
-static void examine_heap() {
-  BlockInfo *block;
-
-  fprintf(stderr, "mem_heap_lo:%ld mem_heap_hi:%ld\n", mem_heap_lo(), mem_heap_hi());
-  fprintf(stderr, "FREE_LIST_HEAD: %p\n", (void *)FREE_LIST_HEAD);
-
-  for(block = (BlockInfo*)POINTER_ADD(mem_heap_lo(), WORD_SIZE); /* first block on heap */
-      SIZE(block->sizeAndTags) != 0 && block < mem_heap_hi();
-      block = (BlockInfo*)POINTER_ADD(block, SIZE(block->sizeAndTags))) {
-
-    /* print out common block attributes */
-    fprintf(stderr, "%p: %ld %ld %ld\t",
-            (void*)block,
-            SIZE(block->sizeAndTags),
-            block->sizeAndTags & TAG_PRECEDING_USED,
-            block->sizeAndTags & TAG_USED);
-
-    /* and allocated/free specific data */
-    if (block->sizeAndTags & TAG_USED) {
-      fprintf(stderr, "ALLOCATED\n");
-    } else {
-      fprintf(stderr, "FREE\tnext: %p, prev: %p\n",
-              (void*)block->next,
-              (void*)block->prev);
-    }
-  }
-  fprintf(stderr, "END OF HEAP\n\n");
-}
-
 /* Allocate a block of size size and return a pointer to it. */
 void* mm_malloc (size_t size) {
   size_t reqSize;
@@ -373,51 +397,63 @@ void* mm_malloc (size_t size) {
     reqSize = ALIGNMENT * ((size + ALIGNMENT - 1) / ALIGNMENT);
   }
 
-  fprintf(stderr, "==================================malloc:%d\n", reqSize);
+  //fprintf(stderr, "==================================malloc:%d\n", reqSize);
   // Implement mm_malloc.  You can change or remove any of the above
   // code.  It is included as a suggestion of where to start.
   // You will want to replace this return statement...
-
+  //examine_heap();
   while(1){
-    examine_heap();
-    fprintf(stderr, "enter while\n", 0);
+    //fprintf(stderr, "enter while\n", 0);
     if((ptrFreeBlock = (BlockInfo*)searchFreeList(reqSize)) != NULL){
       size_t leftSize = SIZE(ptrFreeBlock->sizeAndTags) - reqSize;
-      ptrFreeBlock-> sizeAndTags = reqSize | TAG_USED | TAG_PRECEDING_USED;
-      fprintf(stderr, "%ld\n", SIZE(ptrFreeBlock->sizeAndTags));
-      fprintf(stderr, "ptrFreeBlock:%p reqSize:%ld leftSize:%ld M_B_S:%ld \n", (void*)ptrFreeBlock, reqSize, leftSize,  MIN_BLOCK_SIZE);
+      //fprintf(stderr, "%ld\n", SIZE(ptrFreeBlock->sizeAndTags));
+      //fprintf(stderr, "ptrFreeBlock:%p reqSize:%ld leftSize:%ld M_B_S:%ld \n", (void*)ptrFreeBlock, reqSize, leftSize,  MIN_BLOCK_SIZE);
       if( leftSize >= MIN_BLOCK_SIZE ){
-	BlockInfo *leftFreeBlock = (BlockInfo*)POINTER_ADD(ptrFreeBlock, reqSize);
-	leftFreeBlock-> sizeAndTags = leftSize | TAG_PRECEDING_USED;
-	*(size_t*)POINTER_SUB(POINTER_ADD(leftFreeBlock, leftSize), WORD_SIZE) = leftSize | TAG_PRECEDING_USED;
-	ptrFreeBlock->prev->next = leftFreeBlock;
-	fprintf(stderr, "leftFreeBlock:%p\n", (void*)leftFreeBlock);
-	leftFreeBlock->prev = ptrFreeBlock->prev;
-	leftFreeBlock->next = ptrFreeBlock->next;
-	if(ptrFreeBlock->next != NULL){
-	  ptrFreeBlock->next->prev = leftFreeBlock;
-	}
-	if(FREE_LIST_HEAD == ptrFreeBlock){
-	  FREE_LIST_HEAD = leftFreeBlock;
-	}
+        putSizeAndTags(ptrFreeBlock, reqSize | TAG_USED | TAG_PRECEDING_USED);
+
+        BlockInfo *leftFreeBlock = (BlockInfo*)POINTER_ADD(ptrFreeBlock, reqSize);
+        putSizeAndTags(leftFreeBlock, leftSize | TAG_PRECEDING_USED &(~TAG_USED));
+
+        if(FREE_LIST_HEAD != ptrFreeBlock){
+          ptrFreeBlock->prev->next = leftFreeBlock;
+          leftFreeBlock->prev = ptrFreeBlock->prev;
+        }else{
+          leftFreeBlock->prev = NULL;
+        }
+        //fprintf(stderr, "leftFreeBlock:%p\n", (void*)leftFreeBlock);
+        leftFreeBlock->next = ptrFreeBlock->next;
+
+        if(ptrFreeBlock->next != NULL){
+          ptrFreeBlock->next->prev = leftFreeBlock;
+        }
+        if(FREE_LIST_HEAD == ptrFreeBlock){
+          FREE_LIST_HEAD = leftFreeBlock;
+        }
       }else{
-	fprintf(stderr, "removeFreeBlock:%p\n", (void*)ptrFreeBlock);
-	removeFreeBlock(ptrFreeBlock);
+        //fprintf(stderr, "removeFreeBlock:%p\n", (void*)ptrFreeBlock);
+        putSizeAndTags(ptrFreeBlock, ptrFreeBlock -> sizeAndTags | TAG_USED);
+        
+        BlockInfo * followingBlock = (BlockInfo *)POINTER_ADD(ptrFreeBlock, SIZE(ptrFreeBlock->sizeAndTags));
+        if(followingBlock < mem_heap_hi()){
+          putSizeAndTags(followingBlock,followingBlock -> sizeAndTags | TAG_PRECEDING_USED);  
+        }
+        
+        removeFreeBlock(ptrFreeBlock);
       }
-      fprintf(stderr, "exit malloc\n","");
-      examine_heap();
+      //examine_heap();
+      //fprintf(stderr, "exit malloc\n","");
       return ptrFreeBlock;
     }else{
-      fprintf(stderr, "requestMoreSpace:%d\n", reqSize);
+      //fprintf(stderr, "requestMoreSpace:%d\n", reqSize);
       requestMoreSpace(reqSize);
-      examine_heap();
+      //examine_heap();
     }
   }
 }
 
 /* Free the block referenced by ptr. */
 void mm_free (void *ptr) {
-  fprintf(stderr, "==================================free:%ld\n", ptr);
+  //fprintf(stderr, "==================================free:%lx\n", ptr);
   size_t payloadSize;
   BlockInfo * blockInfo;
   BlockInfo * followingBlock;
@@ -430,9 +466,18 @@ void mm_free (void *ptr) {
   
   blockInfo  = ptr;
   if(blockInfo -> sizeAndTags & TAG_USED == 0){
-    fprintf(stderr, "free a free block\n");
+    //fprintf(stderr, "free a free block\n");
     return NULL;
   }
+
+  putSizeAndTags(blockInfo, blockInfo->sizeAndTags & (~TAG_USED));
+  
+  followingBlock = (BlockInfo *)POINTER_ADD(blockInfo, SIZE(blockInfo->sizeAndTags));
+  if(followingBlock < mem_heap_hi()){
+    putSizeAndTags(followingBlock,followingBlock -> sizeAndTags & (~TAG_PRECEDING_USED));  
+  }
+  
+  insertFreeBlock(ptr);
   coalesceFreeBlock(ptr);
 }
 
