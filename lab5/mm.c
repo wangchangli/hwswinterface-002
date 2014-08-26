@@ -322,13 +322,13 @@ int mm_init () {
 static void examine_heap() {
   BlockInfo *block;
 
-  fprintf(stderr, "mem_heap_lo:%ld mem_heap_hi:%ld\n", mem_heap_lo(), mem_heap_hi());
+  fprintf(stderr, "mem_heap_lo:%lx mem_heap_hi:%lx\n", mem_heap_lo(), mem_heap_hi());
   fprintf(stderr, "FREE_LIST_HEAD: %p\n", (void *)FREE_LIST_HEAD);
 
   for(block = (BlockInfo*)POINTER_ADD(mem_heap_lo(), WORD_SIZE); /* first block on heap */
       SIZE(block->sizeAndTags) != 0 && block < mem_heap_hi();
       block = (BlockInfo*)POINTER_ADD(block, SIZE(block->sizeAndTags))) {
-
+    fprintf(stderr,"fuck\n");
     /* print out common block attributes */
     fprintf(stderr, "%p: %ld %ld %ld\t",
             (void*)block,
@@ -417,7 +417,7 @@ void* mm_malloc (size_t size) {
 
 /* Free the block referenced by ptr. */
 void mm_free (void *ptr) {
-  fprintf(stderr, "==================================free:%ld\n", ptr);
+  fprintf(stderr, "==================================free:%lx\n", ptr);
   size_t payloadSize;
   BlockInfo * blockInfo;
   BlockInfo * followingBlock;
